@@ -1,0 +1,646 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Core user account and role-based access control profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "minLength": 3, "maxLength": 160 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "displayNameBn": { "type": "string", "maxLength": 120 },
+        "role": { "type": "string", "enum": ["super_admin", "admin", "teacher", "student", "parent"] },
+        "status": { "type": "string", "enum": ["active", "pending", "suspended"] },
+        "phone": { "type": "string", "maxLength": 32 },
+        "photoUrl": { "type": "string", "maxLength": 500 },
+        "cloudinaryImageUrl": { "type": "string", "maxLength": 500 },
+        "cloudinaryPublicId": { "type": "string", "maxLength": 240 },
+        "uploadedAt": { "type": "string", "maxLength": 60 },
+        "permissions": { "type": "array", "description": "Granted granular permissions for admin/teacher" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "role", "status", "createdAt", "updatedAt"]
+    },
+    "PublicTeacher": {
+      "title": "PublicTeacher",
+      "description": "Publicly visible scholar profile for the Madrasah homepage gallery (no PII)",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "nameBn": { "type": "string", "maxLength": 120 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "titleBn": { "type": "string", "maxLength": 120 },
+        "qualification": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "qualificationBn": { "type": "string", "maxLength": 200 },
+        "experienceYears": { "type": "number" },
+        "bio": { "type": "string", "maxLength": 1000 },
+        "bioBn": { "type": "string", "maxLength": 1000 },
+        "subjects": { "type": "array" },
+        "photoUrl": { "type": "string", "maxLength": 500 },
+        "cloudinaryImageUrl": { "type": "string", "maxLength": 500 },
+        "cloudinaryPublicId": { "type": "string", "maxLength": 240 },
+        "uploadedAt": { "type": "string", "maxLength": 60 },
+        "featured": { "type": "boolean" },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "title", "qualification", "experienceYears", "featured", "order", "createdAt", "updatedAt"]
+    },
+    "TeacherRecord": {
+      "title": "TeacherRecord",
+      "description": "Internal teacher management profile with assignments and contact info",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "teacherCode": { "type": "string", "minLength": 2, "maxLength": 40 },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "fullNameBn": { "type": "string", "maxLength": 120 },
+        "qualification": { "type": "string", "maxLength": 200 },
+        "bio": { "type": "string", "maxLength": 1500 },
+        "experience": { "type": "string", "maxLength": 120 },
+        "subjects": { "type": "array" },
+        "assignedCourseIds": { "type": "array" },
+        "assignedClassIds": { "type": "array" },
+        "assignedBatches": { "type": "array" },
+        "email": { "type": "string", "maxLength": 160 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "photoUrl": { "type": "string", "maxLength": 500 },
+        "cloudinaryImageUrl": { "type": "string", "maxLength": 500 },
+        "cloudinaryPublicId": { "type": "string", "maxLength": 240 },
+        "uploadedAt": { "type": "string", "maxLength": 60 },
+        "status": { "type": "string", "enum": ["active", "pending", "suspended"] },
+        "canPublishResults": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "teacherCode", "fullName", "qualification", "status", "canPublishResults", "createdAt", "updatedAt"]
+    },
+    "StudentRecord": {
+      "title": "StudentRecord",
+      "description": "Enrolled student academic and personal profile",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "admissionNo": { "type": "string", "minLength": 2, "maxLength": 40 },
+        "rollNo": { "type": "string", "minLength": 1, "maxLength": 20 },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "fullNameBn": { "type": "string", "maxLength": 120 },
+        "fatherName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "fatherNameBn": { "type": "string", "maxLength": 120 },
+        "motherName": { "type": "string", "maxLength": 120 },
+        "dob": { "type": "string", "maxLength": 30 },
+        "gender": { "type": "string", "enum": ["male", "female"] },
+        "address": { "type": "string", "maxLength": 300 },
+        "guardianPhone": { "type": "string", "maxLength": 32 },
+        "classId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "className": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "batchName": { "type": "string", "maxLength": 60 },
+        "session": { "type": "string", "minLength": 2, "maxLength": 30 },
+        "photoUrl": { "type": "string", "maxLength": 500 },
+        "cloudinaryImageUrl": { "type": "string", "maxLength": 500 },
+        "cloudinaryPublicId": { "type": "string", "maxLength": 240 },
+        "uploadedAt": { "type": "string", "maxLength": 60 },
+        "status": { "type": "string", "enum": ["active", "pending", "suspended", "graduated"] },
+        "enrolledCourseIds": { "type": "array" },
+        "parentUserIds": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["admissionNo", "rollNo", "fullName", "fatherName", "classId", "className", "session", "status", "createdAt", "updatedAt"]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "Madrasah Islamic education course or academic program",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "titleBn": { "type": "string", "maxLength": 140 },
+        "category": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "categoryBn": { "type": "string", "maxLength": 80 },
+        "description": { "type": "string", "maxLength": 1200 },
+        "descriptionBn": { "type": "string", "maxLength": 1200 },
+        "level": { "type": "string", "maxLength": 60 },
+        "duration": { "type": "string", "maxLength": 60 },
+        "teacherId": { "type": "string", "maxLength": 128 },
+        "teacherName": { "type": "string", "maxLength": 120 },
+        "classId": { "type": "string", "maxLength": 128 },
+        "thumbnailUrl": { "type": "string", "maxLength": 500 },
+        "cloudinaryImageUrl": { "type": "string", "maxLength": 500 },
+        "cloudinaryPublicId": { "type": "string", "maxLength": 240 },
+        "uploadedAt": { "type": "string", "maxLength": 60 },
+        "featured": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["active", "draft", "archived"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "category", "description", "featured", "status", "createdAt", "updatedAt"]
+    },
+    "ClassBatch": {
+      "title": "ClassBatch",
+      "description": "Academic class and batch configuration",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "nameBn": { "type": "string", "maxLength": 80 },
+        "code": { "type": "string", "minLength": 1, "maxLength": 30 },
+        "session": { "type": "string", "minLength": 2, "maxLength": 30 },
+        "batchName": { "type": "string", "maxLength": 60 },
+        "classTeacherId": { "type": "string", "maxLength": 128 },
+        "classTeacherName": { "type": "string", "maxLength": 120 },
+        "capacity": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "code", "session", "createdAt", "updatedAt"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "Academic subject attached to a class",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "nameBn": { "type": "string", "maxLength": 100 },
+        "code": { "type": "string", "maxLength": 30 },
+        "classId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "fullMarks": { "type": "number" },
+        "passMarks": { "type": "number" },
+        "teacherId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "classId", "fullMarks", "passMarks", "createdAt", "updatedAt"]
+    },
+    "Admission": {
+      "title": "Admission",
+      "description": "Online student admission application",
+      "type": "object",
+      "properties": {
+        "applicationNo": { "type": "string", "minLength": 4, "maxLength": 40 },
+        "studentName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "fatherName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "motherName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "dob": { "type": "string", "minLength": 4, "maxLength": 30 },
+        "gender": { "type": "string", "enum": ["male", "female"] },
+        "address": { "type": "string", "minLength": 3, "maxLength": 300 },
+        "guardianContact": { "type": "string", "minLength": 6, "maxLength": 32 },
+        "previousEducation": { "type": "string", "maxLength": 200 },
+        "classId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "className": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "session": { "type": "string", "minLength": 2, "maxLength": 30 },
+        "photoUrl": { "type": "string", "maxLength": 500 },
+        "cloudinaryImageUrl": { "type": "string", "maxLength": 500 },
+        "cloudinaryPublicId": { "type": "string", "maxLength": 240 },
+        "uploadedAt": { "type": "string", "maxLength": 60 },
+        "documentsNote": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "submittedByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "generatedStudentId": { "type": "string", "maxLength": 128 },
+        "reviewNote": { "type": "string", "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["applicationNo", "studentName", "fatherName", "motherName", "dob", "gender", "address", "guardianContact", "classId", "className", "session", "status", "submittedByUid", "createdAt", "updatedAt"]
+    },
+    "Examination": {
+      "title": "Examination",
+      "description": "Examination schedule and configuration including optional MCQ questions",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "titleBn": { "type": "string", "maxLength": 140 },
+        "session": { "type": "string", "minLength": 2, "maxLength": 30 },
+        "classId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "className": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "examType": { "type": "string", "enum": ["written", "mcq", "combined"] },
+        "durationMinutes": { "type": "number" },
+        "startDate": { "type": "string", "maxLength": 40 },
+        "status": { "type": "string", "enum": ["draft", "active", "completed", "published"] },
+        "questions": { "type": "array" },
+        "createdByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "session", "classId", "className", "examType", "durationMinutes", "status", "createdByUid", "createdAt", "updatedAt"]
+    },
+    "Result": {
+      "title": "Result",
+      "description": "Official academic examination marksheet with automatic grade and pass calculations",
+      "type": "object",
+      "properties": {
+        "examId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "examTitle": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "examTitleBn": { "type": "string", "maxLength": 140 },
+        "session": { "type": "string", "minLength": 2, "maxLength": 30 },
+        "classId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "className": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "studentId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "studentUid": { "type": "string", "maxLength": 128 },
+        "admissionNo": { "type": "string", "minLength": 2, "maxLength": 40 },
+        "rollNo": { "type": "string", "minLength": 1, "maxLength": 20 },
+        "studentName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "fatherName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "photoUrl": { "type": "string", "maxLength": 500 },
+        "cloudinaryImageUrl": { "type": "string", "maxLength": 500 },
+        "cloudinaryPublicId": { "type": "string", "maxLength": 240 },
+        "uploadedAt": { "type": "string", "maxLength": 60 },
+        "subjects": { "type": "array" },
+        "totalObtained": { "type": "number" },
+        "totalFull": { "type": "number" },
+        "percentage": { "type": "number" },
+        "grade": { "type": "string", "minLength": 1, "maxLength": 10 },
+        "passed": { "type": "boolean" },
+        "performanceRemark": { "type": "string", "maxLength": 80 },
+        "teacherRemarks": { "type": "string", "maxLength": 400 },
+        "classTeacherName": { "type": "string", "maxLength": 120 },
+        "headTeacherName": { "type": "string", "maxLength": 120 },
+        "submittedByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "approvalStatus": { "type": "string", "enum": ["draft", "submitted", "approved", "published"] },
+        "publishedAt": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["examId", "examTitle", "session", "classId", "className", "studentId", "admissionNo", "rollNo", "studentName", "fatherName", "subjects", "totalObtained", "totalFull", "percentage", "grade", "passed", "submittedByUid", "approvalStatus", "createdAt", "updatedAt"]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Student daily or subject attendance record",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "minLength": 8, "maxLength": 20 },
+        "classId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "className": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "subjectName": { "type": "string", "maxLength": 100 },
+        "studentId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "studentUid": { "type": "string", "maxLength": 128 },
+        "studentName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "rollNo": { "type": "string", "minLength": 1, "maxLength": 20 },
+        "status": { "type": "string", "enum": ["present", "absent", "late", "excused"] },
+        "markedByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "remarks": { "type": "string", "maxLength": 200 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["date", "classId", "className", "studentId", "studentName", "rollNo", "status", "markedByUid", "createdAt", "updatedAt"]
+    },
+    "Assignment": {
+      "title": "Assignment",
+      "description": "Course or class assignment created by teacher",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "titleBn": { "type": "string", "maxLength": 140 },
+        "description": { "type": "string", "maxLength": 1500 },
+        "courseId": { "type": "string", "maxLength": 128 },
+        "classId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "className": { "type": "string", "maxLength": 80 },
+        "teacherUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "teacherName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "dueDate": { "type": "string", "minLength": 4, "maxLength": 40 },
+        "maxMarks": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "description", "classId", "teacherUid", "teacherName", "dueDate", "maxMarks", "createdAt", "updatedAt"]
+    },
+    "Submission": {
+      "title": "Submission",
+      "description": "Student submission for an assignment or online MCQ exam",
+      "type": "object",
+      "properties": {
+        "targetType": { "type": "string", "enum": ["assignment", "exam"] },
+        "targetId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "targetTitle": { "type": "string", "maxLength": 140 },
+        "studentUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "studentId": { "type": "string", "maxLength": 128 },
+        "studentName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "content": { "type": "string", "maxLength": 4000 },
+        "attachmentUrl": { "type": "string", "maxLength": 500 },
+        "answers": { "type": "array" },
+        "score": { "type": "number" },
+        "maxScore": { "type": "number" },
+        "feedback": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["submitted", "graded"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["targetType", "targetId", "studentUid", "studentName", "status", "createdAt", "updatedAt"]
+    },
+    "LiveClass": {
+      "title": "LiveClass",
+      "description": "Scheduled live online session with approved provider link",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "titleBn": { "type": "string", "maxLength": 140 },
+        "courseTitle": { "type": "string", "maxLength": 120 },
+        "classId": { "type": "string", "maxLength": 128 },
+        "className": { "type": "string", "maxLength": 80 },
+        "teacherUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "teacherName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "scheduledAt": { "type": "string", "minLength": 4, "maxLength": 50 },
+        "durationMinutes": { "type": "number" },
+        "provider": { "type": "string", "enum": ["Zoom", "Google Meet", "Jitsi", "YouTube Live"] },
+        "meetingUrl": { "type": "string", "minLength": 8, "maxLength": 500 },
+        "status": { "type": "string", "enum": ["scheduled", "live", "completed"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "teacherUid", "teacherName", "scheduledAt", "durationMinutes", "provider", "meetingUrl", "status", "createdAt", "updatedAt"]
+    },
+    "Lesson": {
+      "title": "Lesson",
+      "description": "Recorded video lesson in Madrasah video library",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "titleBn": { "type": "string", "maxLength": 140 },
+        "category": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "classId": { "type": "string", "maxLength": 128 },
+        "className": { "type": "string", "maxLength": 80 },
+        "teacherUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "teacherName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "videoUrl": { "type": "string", "minLength": 8, "maxLength": 500 },
+        "duration": { "type": "string", "maxLength": 30 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "completedByUids": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "category", "teacherUid", "teacherName", "videoUrl", "createdAt", "updatedAt"]
+    },
+    "StudyMaterial": {
+      "title": "StudyMaterial",
+      "description": "Digital library resource (PDF, notes, audio, video)",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "titleBn": { "type": "string", "maxLength": 140 },
+        "type": { "type": "string", "enum": ["pdf", "notes", "audio", "video"] },
+        "category": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "subjectName": { "type": "string", "maxLength": 100 },
+        "classId": { "type": "string", "maxLength": 128 },
+        "resourceUrl": { "type": "string", "minLength": 4, "maxLength": 500 },
+        "description": { "type": "string", "maxLength": 800 },
+        "downloadAllowed": { "type": "boolean" },
+        "uploadedByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "type", "category", "resourceUrl", "downloadAllowed", "uploadedByUid", "createdAt", "updatedAt"]
+    },
+    "Certificate": {
+      "title": "Certificate",
+      "description": "Official verifiable academic or achievement certificate",
+      "type": "object",
+      "properties": {
+        "verificationNo": { "type": "string", "minLength": 4, "maxLength": 40 },
+        "type": { "type": "string", "enum": ["course_completion", "academic", "achievement"] },
+        "studentId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "studentUid": { "type": "string", "maxLength": 128 },
+        "parentUserIds": { "type": "array" },
+        "studentName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "fatherName": { "type": "string", "maxLength": 120 },
+        "className": { "type": "string", "maxLength": 80 },
+        "session": { "type": "string", "maxLength": 30 },
+        "title": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "titleBn": { "type": "string", "maxLength": 160 },
+        "issueDate": { "type": "string", "minLength": 4, "maxLength": 40 },
+        "issuedByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "assetUrl": { "type": "string", "maxLength": 500 },
+        "cloudinaryImageUrl": { "type": "string", "maxLength": 500 },
+        "cloudinaryPublicId": { "type": "string", "maxLength": 240 },
+        "uploadedAt": { "type": "string", "maxLength": 60 },
+        "status": { "type": "string", "enum": ["active", "revoked"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["verificationNo", "type", "studentId", "studentName", "title", "issueDate", "issuedByUid", "status", "createdAt", "updatedAt"]
+    },
+    "Notice": {
+      "title": "Notice",
+      "description": "Public or role-targeted Madrasah notice",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 2, "maxLength": 160 },
+        "titleBn": { "type": "string", "maxLength": 160 },
+        "content": { "type": "string", "minLength": 2, "maxLength": 2500 },
+        "contentBn": { "type": "string", "maxLength": 2500 },
+        "category": { "type": "string", "maxLength": 60 },
+        "priority": { "type": "string", "enum": ["normal", "important", "urgent"] },
+        "targetRole": { "type": "string", "enum": ["all", "teacher", "student", "parent"] },
+        "published": { "type": "boolean" },
+        "imageUrl": { "type": "string", "maxLength": 500 },
+        "cloudinaryImageUrl": { "type": "string", "maxLength": 500 },
+        "cloudinaryPublicId": { "type": "string", "maxLength": 240 },
+        "uploadedAt": { "type": "string", "maxLength": 60 },
+        "authorUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "authorName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "content", "priority", "targetRole", "published", "authorUid", "authorName", "createdAt", "updatedAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "In-app notification or direct message for a specific user",
+      "type": "object",
+      "properties": {
+        "recipientUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "senderUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "senderName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "type": { "type": "string", "enum": ["announcement", "message", "reminder", "result", "admission"] },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["recipientUid", "senderUid", "senderName", "title", "message", "type", "read", "createdAt"]
+    },
+    "FeeRecord": {
+      "title": "FeeRecord",
+      "description": "Student tuition or admission fee invoice and payment receipt",
+      "type": "object",
+      "properties": {
+        "receiptNo": { "type": "string", "minLength": 3, "maxLength": 40 },
+        "studentId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "studentUid": { "type": "string", "maxLength": 128 },
+        "studentName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "admissionNo": { "type": "string", "maxLength": 40 },
+        "className": { "type": "string", "maxLength": 80 },
+        "category": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "amount": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "dueAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["paid", "partial", "unpaid"] },
+        "paymentDate": { "type": "string", "maxLength": 40 },
+        "remarks": { "type": "string", "maxLength": 300 },
+        "recordedByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["receiptNo", "studentId", "studentName", "category", "amount", "paidAmount", "dueAmount", "status", "recordedByUid", "createdAt", "updatedAt"]
+    },
+    "SiteSettings": {
+      "title": "SiteSettings",
+      "description": "Editable Madrasah branding, homepage content, contact details, and grading scale",
+      "type": "object",
+      "properties": {
+        "madrasaName": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "madrasaNameBn": { "type": "string", "maxLength": 140 },
+        "tagline": { "type": "string", "maxLength": 200 },
+        "taglineBn": { "type": "string", "maxLength": 200 },
+        "establishedYear": { "type": "string", "maxLength": 20 },
+        "motto": { "type": "string", "maxLength": 160 },
+        "heroTitle": { "type": "string", "maxLength": 200 },
+        "heroTitleBn": { "type": "string", "maxLength": 200 },
+        "heroSubtitle": { "type": "string", "maxLength": 400 },
+        "heroSubtitleBn": { "type": "string", "maxLength": 400 },
+        "welcomeTitle": { "type": "string", "maxLength": 200 },
+        "welcomeText": { "type": "string", "maxLength": 1500 },
+        "welcomeTextBn": { "type": "string", "maxLength": 1500 },
+        "aboutText": { "type": "string", "maxLength": 2000 },
+        "aboutTextBn": { "type": "string", "maxLength": 2000 },
+        "principalName": { "type": "string", "maxLength": 120 },
+        "principalNameBn": { "type": "string", "maxLength": 120 },
+        "principalTitle": { "type": "string", "maxLength": 120 },
+        "principalMessage": { "type": "string", "maxLength": 1500 },
+        "principalMessageBn": { "type": "string", "maxLength": 1500 },
+        "principalPhotoUrl": { "type": "string", "maxLength": 500 },
+        "principalPhotoPublicId": { "type": "string", "maxLength": 240 },
+        "logoUrl": { "type": "string", "maxLength": 500 },
+        "logoPublicId": { "type": "string", "maxLength": 240 },
+        "heroBannerUrl": { "type": "string", "maxLength": 500 },
+        "heroBannerPublicId": { "type": "string", "maxLength": 240 },
+        "admissionBannerUrl": { "type": "string", "maxLength": 500 },
+        "admissionBannerPublicId": { "type": "string", "maxLength": 240 },
+        "certificateSealUrl": { "type": "string", "maxLength": 500 },
+        "certificateSealPublicId": { "type": "string", "maxLength": 240 },
+        "cloudinaryImageUrl": { "type": "string", "maxLength": 500 },
+        "cloudinaryPublicId": { "type": "string", "maxLength": 240 },
+        "uploadedAt": { "type": "string", "maxLength": 60 },
+        "admissionOpen": { "type": "boolean" },
+        "admissionBannerText": { "type": "string", "maxLength": 300 },
+        "admissionBannerTextBn": { "type": "string", "maxLength": 300 },
+        "address": { "type": "string", "maxLength": 300 },
+        "addressBn": { "type": "string", "maxLength": 300 },
+        "phone": { "type": "string", "maxLength": 50 },
+        "email": { "type": "string", "maxLength": 140 },
+        "socialLinks": { "type": "object" },
+        "gradingRules": { "type": "array" },
+        "passPercentage": { "type": "number" },
+        "superAdminInitialized": { "type": "boolean" },
+        "updatedByUid": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["madrasaName", "establishedYear", "updatedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable security and administrative activity log",
+      "type": "object",
+      "properties": {
+        "actorUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "actorEmail": { "type": "string", "maxLength": 160 },
+        "actorRole": { "type": "string", "maxLength": 40 },
+        "action": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "targetCollection": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "summary": { "type": "string", "minLength": 2, "maxLength": 400 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["actorUid", "action", "targetCollection", "summary", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User accounts, roles, and permissions"
+    },
+    "/publicTeachers/{teacherId}": {
+      "schema": { "$ref": "#/entities/PublicTeacher" },
+      "description": "Publicly visible Madrasah faculty showcase"
+    },
+    "/teachers/{teacherId}": {
+      "schema": { "$ref": "#/entities/TeacherRecord" },
+      "description": "Protected teacher profiles and class assignments"
+    },
+    "/students/{studentId}": {
+      "schema": { "$ref": "#/entities/StudentRecord" },
+      "description": "Protected student academic and guardian records"
+    },
+    "/courses/{courseId}": {
+      "schema": { "$ref": "#/entities/Course" },
+      "description": "Madrasah courses and academic programs"
+    },
+    "/classes/{classId}": {
+      "schema": { "$ref": "#/entities/ClassBatch" },
+      "description": "Academic classes, sessions, and batches"
+    },
+    "/subjects/{subjectId}": {
+      "schema": { "$ref": "#/entities/Subject" },
+      "description": "Class-assigned subjects and full/pass mark rules"
+    },
+    "/admissions/{admissionId}": {
+      "schema": { "$ref": "#/entities/Admission" },
+      "description": "Online admission applications"
+    },
+    "/examinations/{examId}": {
+      "schema": { "$ref": "#/entities/Examination" },
+      "description": "Scheduled examinations and MCQ configs"
+    },
+    "/results/{resultId}": {
+      "schema": { "$ref": "#/entities/Result" },
+      "description": "Academic marksheets with approval and publication controls"
+    },
+    "/attendance/{attendanceId}": {
+      "schema": { "$ref": "#/entities/Attendance" },
+      "description": "Daily and class-wise student attendance"
+    },
+    "/assignments/{assignmentId}": {
+      "schema": { "$ref": "#/entities/Assignment" },
+      "description": "Teacher assignments"
+    },
+    "/submissions/{submissionId}": {
+      "schema": { "$ref": "#/entities/Submission" },
+      "description": "Student assignment and MCQ exam submissions"
+    },
+    "/liveClasses/{liveClassId}": {
+      "schema": { "$ref": "#/entities/LiveClass" },
+      "description": "Scheduled live class links"
+    },
+    "/lessons/{lessonId}": {
+      "schema": { "$ref": "#/entities/Lesson" },
+      "description": "Recorded video lessons"
+    },
+    "/studyMaterials/{materialId}": {
+      "schema": { "$ref": "#/entities/StudyMaterial" },
+      "description": "Digital library study materials"
+    },
+    "/certificates/{certificateId}": {
+      "schema": { "$ref": "#/entities/Certificate" },
+      "description": "Verifiable academic and completion certificates"
+    },
+    "/notices/{noticeId}": {
+      "schema": { "$ref": "#/entities/Notice" },
+      "description": "Official notices and announcements"
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "Targeted user notifications and messages"
+    },
+    "/feeRecords/{feeId}": {
+      "schema": { "$ref": "#/entities/FeeRecord" },
+      "description": "Student fee invoices and payment receipts"
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/SiteSettings" },
+      "description": "Website branding, content, and grading policy"
+    },
+    "/auditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Security and administrative audit logs"
+    }
+  }
+}

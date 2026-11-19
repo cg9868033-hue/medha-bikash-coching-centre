@@ -1,0 +1,57 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Global deny by default
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    function isVerified() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedSuperAdmin() {
+      return isVerified() && request.auth.token.email == 'cg9868033@gmail.com';
+    }
+
+    // Note: Firebase Storage Rules cross-service firestore.get() only supports the
+    // "(default)" Firestore database, not custom named databases like
+    // "ai-studio-6e3933bf-6be8-4ea1-b9b7-b9a80471e9e7". Therefore additional admins
+    // should either be granted Auth custom claims (role: "admin" / "super_admin")
+    // or mirrored into "(default)/users/{uid}".
+    function hasAdminCustomClaim() {
+      return isVerified() && (
+        ('admin' in request.auth.token && request.auth.token.admin == true) ||
+        ('role' in request.auth.token && request.auth.token.role in ['super_admin', 'admin'])
+      );
+    }
+
+    function isAuthorizedAdmin() {
+      return isBootstrappedSuperAdmin() || hasAdminCustomClaim();
+    }
+
+    function isValidUploadedImage() {
+      return request.resource != null
+        && request.resource.size > 0
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('^image/(jpeg|jpg|png|webp)$');
+    }
+
+    // Student portraits stored under /students/
+    // Writable/replaceable/deletable ONLY by authorized administrators.
+    match /students/{fileName} {
+      allow read: if true;
+      allow create, update: if isAuthorizedAdmin() && isValidUploadedImage();
+      allow delete: if isAuthorizedAdmin();
+    }
+
+    // Teacher & Scholar Gallery portraits stored under /teachers/
+    // Publicly readable for homepage Teachers Gallery; writable/deletable ONLY by authorized administrators.
+    match /teachers/{fileName} {
+      allow read: if true;
+      allow create, update: if isAuthorizedAdmin() && isValidUploadedImage();
+      allow delete: if isAuthorizedAdmin();
+    }
+  }
+}

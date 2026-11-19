@@ -1,0 +1,6 @@
+{
+  "name": "Meder Dhar Shishu Madrasah",
+  "description": "Complete Madrasa Management, Online Islamic Education, and Academic Result Portal for Meder Dhar Shishu Madrasah (Est. 2002).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

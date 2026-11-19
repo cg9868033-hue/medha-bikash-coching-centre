@@ -1,0 +1,950 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 4.1: Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ------------------------------------------------------------------
+    // Global Hardened Primitives
+    // ------------------------------------------------------------------
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isVerified() && request.auth.uid == uid;
+    }
+
+    function isBootstrappedSuperAdmin() {
+      return isVerified() && request.auth.token.email == 'cg9868033@gmail.com';
+    }
+
+    function getUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function hasActiveUserDoc() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && getUserDoc().data.status == 'active';
+    }
+
+    function isSuperAdmin() {
+      return isBootstrappedSuperAdmin()
+        || (isVerified() && hasActiveUserDoc() && getUserDoc().data.role == 'super_admin');
+    }
+
+    function isAdmin() {
+      return isSuperAdmin()
+        || (isVerified() && hasActiveUserDoc() && getUserDoc().data.role == 'admin');
+    }
+
+    function isTeacher() {
+      return isAdmin()
+        || (isVerified() && hasActiveUserDoc() && getUserDoc().data.role == 'teacher');
+    }
+
+    function canPublishResults() {
+      return isAdmin()
+        || (isTeacher() && ('permissions' in getUserDoc().data) && 'publish_results' in getUserDoc().data.permissions);
+    }
+
+    function isNonEmptyString(val, maxLen) {
+      return val is string && val.size() >= 1 && val.size() <= maxLen;
+    }
+
+    function isOptionalString(data, key, maxLen) {
+      return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function isBoundedStringList(listVal, maxLen) {
+      return listVal is list && listVal.size() <= maxLen && (listVal.size() == 0 || listVal[0] is string);
+    }
+
+    // ------------------------------------------------------------------
+    // Entity Validation Helpers (Pillar 2)
+    // ------------------------------------------------------------------
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'displayNameBn', 'role', 'status', 'phone', 'photoUrl', 'cloudinaryImageUrl', 'cloudinaryPublicId', 'uploadedAt', 'permissions', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && isNonEmptyString(data.email, 160)
+        && isNonEmptyString(data.displayName, 120)
+        && isOptionalString(data, 'displayNameBn', 120)
+        && data.role in ['super_admin', 'admin', 'teacher', 'student', 'parent']
+        && data.status in ['active', 'pending', 'suspended']
+        && isOptionalString(data, 'phone', 32)
+        && isOptionalString(data, 'photoUrl', 500)
+        && isOptionalString(data, 'cloudinaryImageUrl', 500)
+        && isOptionalString(data, 'cloudinaryPublicId', 240)
+        && isOptionalString(data, 'uploadedAt', 60)
+        && (!('permissions' in data) || isBoundedStringList(data.permissions, 30))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPublicTeacher(data) {
+      return data.keys().hasAll(['name', 'title', 'qualification', 'experienceYears', 'featured', 'order', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'nameBn', 'title', 'titleBn', 'qualification', 'qualificationBn', 'experienceYears', 'bio', 'bioBn', 'subjects', 'photoUrl', 'cloudinaryImageUrl', 'cloudinaryPublicId', 'uploadedAt', 'featured', 'order', 'createdAt', 'updatedAt'])
+        && isNonEmptyString(data.name, 120)
+        && isOptionalString(data, 'nameBn', 120)
+        && isNonEmptyString(data.title, 120)
+        && isOptionalString(data, 'titleBn', 120)
+        && isNonEmptyString(data.qualification, 200)
+        && isOptionalString(data, 'qualificationBn', 200)
+        && data.experienceYears is number && data.experienceYears >= 0 && data.experienceYears <= 80
+        && isOptionalString(data, 'bio', 1000)
+        && isOptionalString(data, 'bioBn', 1000)
+        && (!('subjects' in data) || isBoundedStringList(data.subjects, 20))
+        && isOptionalString(data, 'photoUrl', 500)
+        && isOptionalString(data, 'cloudinaryImageUrl', 500)
+        && isOptionalString(data, 'cloudinaryPublicId', 240)
+        && isOptionalString(data, 'uploadedAt', 60)
+        && data.featured is bool
+        && data.order is number
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTeacherRecord(data) {
+      return data.keys().hasAll(['userId', 'teacherCode', 'fullName', 'qualification', 'status', 'canPublishResults', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'teacherCode', 'fullName', 'fullNameBn', 'qualification', 'bio', 'experience', 'subjects', 'assignedCourseIds', 'assignedClassIds', 'assignedBatches', 'email', 'phone', 'photoUrl', 'cloudinaryImageUrl', 'cloudinaryPublicId', 'uploadedAt', 'status', 'canPublishResults', 'createdAt', 'updatedAt'])
+        && isValidId(data.userId)
+        && isNonEmptyString(data.teacherCode, 40)
+        && isNonEmptyString(data.fullName, 120)
+        && isOptionalString(data, 'fullNameBn', 120)
+        && isNonEmptyString(data.qualification, 200)
+        && isOptionalString(data, 'bio', 1500)
+        && isOptionalString(data, 'experience', 120)
+        && (!('subjects' in data) || isBoundedStringList(data.subjects, 25))
+        && (!('assignedCourseIds' in data) || isBoundedStringList(data.assignedCourseIds, 30))
+        && (!('assignedClassIds' in data) || isBoundedStringList(data.assignedClassIds, 30))
+        && (!('assignedBatches' in data) || isBoundedStringList(data.assignedBatches, 30))
+        && isOptionalString(data, 'email', 160)
+        && isOptionalString(data, 'phone', 32)
+        && isOptionalString(data, 'photoUrl', 500)
+        && isOptionalString(data, 'cloudinaryImageUrl', 500)
+        && isOptionalString(data, 'cloudinaryPublicId', 240)
+        && isOptionalString(data, 'uploadedAt', 60)
+        && data.status in ['active', 'pending', 'suspended']
+        && data.canPublishResults is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStudentRecord(data) {
+      return data.keys().hasAll(['admissionNo', 'rollNo', 'fullName', 'fatherName', 'classId', 'className', 'session', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'admissionNo', 'rollNo', 'fullName', 'fullNameBn', 'fatherName', 'fatherNameBn', 'motherName', 'dob', 'gender', 'address', 'guardianPhone', 'classId', 'className', 'batchName', 'session', 'photoUrl', 'cloudinaryImageUrl', 'cloudinaryPublicId', 'uploadedAt', 'status', 'enrolledCourseIds', 'parentUserIds', 'createdAt', 'updatedAt'])
+        && isOptionalString(data, 'userId', 128)
+        && isNonEmptyString(data.admissionNo, 40)
+        && isNonEmptyString(data.rollNo, 20)
+        && isNonEmptyString(data.fullName, 120)
+        && isOptionalString(data, 'fullNameBn', 120)
+        && isNonEmptyString(data.fatherName, 120)
+        && isOptionalString(data, 'fatherNameBn', 120)
+        && isOptionalString(data, 'motherName', 120)
+        && isOptionalString(data, 'dob', 30)
+        && (!('gender' in data) || data.gender in ['male', 'female'])
+        && isOptionalString(data, 'address', 300)
+        && isOptionalString(data, 'guardianPhone', 32)
+        && isValidId(data.classId)
+        && isNonEmptyString(data.className, 60)
+        && isOptionalString(data, 'batchName', 60)
+        && isNonEmptyString(data.session, 30)
+        && isOptionalString(data, 'photoUrl', 500)
+        && isOptionalString(data, 'cloudinaryImageUrl', 500)
+        && isOptionalString(data, 'cloudinaryPublicId', 240)
+        && isOptionalString(data, 'uploadedAt', 60)
+        && data.status in ['active', 'pending', 'suspended', 'graduated']
+        && (!('enrolledCourseIds' in data) || isBoundedStringList(data.enrolledCourseIds, 30))
+        && (!('parentUserIds' in data) || isBoundedStringList(data.parentUserIds, 10))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCourse(data) {
+      return data.keys().hasAll(['title', 'category', 'description', 'featured', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'titleBn', 'category', 'categoryBn', 'description', 'descriptionBn', 'level', 'duration', 'teacherId', 'teacherName', 'classId', 'thumbnailUrl', 'cloudinaryImageUrl', 'cloudinaryPublicId', 'uploadedAt', 'featured', 'status', 'createdAt', 'updatedAt'])
+        && isNonEmptyString(data.title, 140)
+        && isOptionalString(data, 'titleBn', 140)
+        && isNonEmptyString(data.category, 80)
+        && isOptionalString(data, 'categoryBn', 80)
+        && isNonEmptyString(data.description, 1200)
+        && isOptionalString(data, 'descriptionBn', 1200)
+        && isOptionalString(data, 'level', 60)
+        && isOptionalString(data, 'duration', 60)
+        && isOptionalString(data, 'teacherId', 128)
+        && isOptionalString(data, 'teacherName', 120)
+        && isOptionalString(data, 'classId', 128)
+        && isOptionalString(data, 'thumbnailUrl', 500)
+        && isOptionalString(data, 'cloudinaryImageUrl', 500)
+        && isOptionalString(data, 'cloudinaryPublicId', 240)
+        && isOptionalString(data, 'uploadedAt', 60)
+        && data.featured is bool
+        && data.status in ['active', 'draft', 'archived']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidClassBatch(data) {
+      return data.keys().hasAll(['name', 'code', 'session', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'nameBn', 'code', 'session', 'batchName', 'classTeacherId', 'classTeacherName', 'capacity', 'createdAt', 'updatedAt'])
+        && isNonEmptyString(data.name, 80)
+        && isOptionalString(data, 'nameBn', 80)
+        && isNonEmptyString(data.code, 30)
+        && isNonEmptyString(data.session, 30)
+        && isOptionalString(data, 'batchName', 60)
+        && isOptionalString(data, 'classTeacherId', 128)
+        && isOptionalString(data, 'classTeacherName', 120)
+        && (!('capacity' in data) || (data.capacity is number && data.capacity >= 1 && data.capacity <= 500))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSubject(data) {
+      return data.keys().hasAll(['name', 'classId', 'fullMarks', 'passMarks', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'nameBn', 'code', 'classId', 'fullMarks', 'passMarks', 'teacherId', 'createdAt', 'updatedAt'])
+        && isNonEmptyString(data.name, 100)
+        && isOptionalString(data, 'nameBn', 100)
+        && isOptionalString(data, 'code', 30)
+        && isValidId(data.classId)
+        && data.fullMarks is number && data.fullMarks >= 1 && data.fullMarks <= 1000
+        && data.passMarks is number && data.passMarks >= 0 && data.passMarks <= data.fullMarks
+        && isOptionalString(data, 'teacherId', 128)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdmission(data) {
+      return data.keys().hasAll(['applicationNo', 'studentName', 'fatherName', 'motherName', 'dob', 'gender', 'address', 'guardianContact', 'classId', 'className', 'session', 'status', 'submittedByUid', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['applicationNo', 'studentName', 'fatherName', 'motherName', 'dob', 'gender', 'address', 'guardianContact', 'previousEducation', 'classId', 'className', 'session', 'photoUrl', 'cloudinaryImageUrl', 'cloudinaryPublicId', 'uploadedAt', 'documentsNote', 'status', 'submittedByUid', 'generatedStudentId', 'reviewNote', 'createdAt', 'updatedAt'])
+        && isNonEmptyString(data.applicationNo, 40)
+        && isNonEmptyString(data.studentName, 120)
+        && isNonEmptyString(data.fatherName, 120)
+        && isNonEmptyString(data.motherName, 120)
+        && isNonEmptyString(data.dob, 30)
+        && data.gender in ['male', 'female']
+        && isNonEmptyString(data.address, 300)
+        && isNonEmptyString(data.guardianContact, 32)
+        && isOptionalString(data, 'previousEducation', 200)
+        && isValidId(data.classId)
+        && isNonEmptyString(data.className, 80)
+        && isNonEmptyString(data.session, 30)
+        && isOptionalString(data, 'photoUrl', 500)
+        && isOptionalString(data, 'cloudinaryImageUrl', 500)
+        && isOptionalString(data, 'cloudinaryPublicId', 240)
+        && isOptionalString(data, 'uploadedAt', 60)
+        && isOptionalString(data, 'documentsNote', 500)
+        && data.status in ['pending', 'approved', 'rejected']
+        && isValidId(data.submittedByUid)
+        && isOptionalString(data, 'generatedStudentId', 128)
+        && isOptionalString(data, 'reviewNote', 300)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidExamination(data) {
+      return data.keys().hasAll(['title', 'session', 'classId', 'className', 'examType', 'durationMinutes', 'status', 'createdByUid', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'titleBn', 'session', 'classId', 'className', 'examType', 'durationMinutes', 'startDate', 'status', 'questions', 'createdByUid', 'createdAt', 'updatedAt'])
+        && isNonEmptyString(data.title, 140)
+        && isOptionalString(data, 'titleBn', 140)
+        && isNonEmptyString(data.session, 30)
+        && isValidId(data.classId)
+        && isNonEmptyString(data.className, 80)
+        && data.examType in ['written', 'mcq', 'combined']
+        && data.durationMinutes is number && data.durationMinutes >= 5 && data.durationMinutes <= 480
+        && isOptionalString(data, 'startDate', 40)
+        && data.status in ['draft', 'active', 'completed', 'published']
+        && (!('questions' in data) || (data.questions is list && data.questions.size() <= 50 && (data.questions.size() == 0 || data.questions[0] is map)))
+        && isValidId(data.createdByUid)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidResult(data) {
+      return data.keys().hasAll(['examId', 'examTitle', 'session', 'classId', 'className', 'studentId', 'admissionNo', 'rollNo', 'studentName', 'fatherName', 'subjects', 'totalObtained', 'totalFull', 'percentage', 'grade', 'passed', 'submittedByUid', 'approvalStatus', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['examId', 'examTitle', 'examTitleBn', 'session', 'classId', 'className', 'studentId', 'studentUid', 'parentUserIds', 'admissionNo', 'rollNo', 'studentName', 'fatherName', 'photoUrl', 'cloudinaryImageUrl', 'cloudinaryPublicId', 'uploadedAt', 'subjects', 'totalObtained', 'totalFull', 'percentage', 'grade', 'passed', 'performanceRemark', 'teacherRemarks', 'classTeacherName', 'headTeacherName', 'submittedByUid', 'approvalStatus', 'publishedAt', 'createdAt', 'updatedAt'])
+        && isValidId(data.examId)
+        && isNonEmptyString(data.examTitle, 140)
+        && isOptionalString(data, 'examTitleBn', 140)
+        && isNonEmptyString(data.session, 30)
+        && isValidId(data.classId)
+        && isNonEmptyString(data.className, 80)
+        && isValidId(data.studentId)
+        && isOptionalString(data, 'studentUid', 128)
+        && (!('parentUserIds' in data) || isBoundedStringList(data.parentUserIds, 10))
+        && isNonEmptyString(data.admissionNo, 40)
+        && isNonEmptyString(data.rollNo, 20)
+        && isNonEmptyString(data.studentName, 120)
+        && isNonEmptyString(data.fatherName, 120)
+        && isOptionalString(data, 'photoUrl', 500)
+        && isOptionalString(data, 'cloudinaryImageUrl', 500)
+        && isOptionalString(data, 'cloudinaryPublicId', 240)
+        && isOptionalString(data, 'uploadedAt', 60)
+        && data.subjects is list && data.subjects.size() >= 1 && data.subjects.size() <= 25 && data.subjects[0] is map
+        && data.totalObtained is number && data.totalObtained >= 0
+        && data.totalFull is number && data.totalFull >= 1
+        && data.percentage is number && data.percentage >= 0 && data.percentage <= 100
+        && isNonEmptyString(data.grade, 10)
+        && data.passed is bool
+        && isOptionalString(data, 'performanceRemark', 80)
+        && isOptionalString(data, 'teacherRemarks', 400)
+        && isOptionalString(data, 'classTeacherName', 120)
+        && isOptionalString(data, 'headTeacherName', 120)
+        && isValidId(data.submittedByUid)
+        && data.approvalStatus in ['draft', 'submitted', 'approved', 'published']
+        && isOptionalString(data, 'publishedAt', 40)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAttendance(data) {
+      return data.keys().hasAll(['date', 'classId', 'className', 'studentId', 'studentName', 'rollNo', 'status', 'markedByUid', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['date', 'classId', 'className', 'subjectName', 'studentId', 'studentUid', 'parentUserIds', 'studentName', 'rollNo', 'status', 'markedByUid', 'remarks', 'createdAt', 'updatedAt'])
+        && isNonEmptyString(data.date, 20)
+        && isValidId(data.classId)
+        && isNonEmptyString(data.className, 80)
+        && isOptionalString(data, 'subjectName', 100)
+        && isValidId(data.studentId)
+        && isOptionalString(data, 'studentUid', 128)
+        && (!('parentUserIds' in data) || isBoundedStringList(data.parentUserIds, 10))
+        && isNonEmptyString(data.studentName, 120)
+        && isNonEmptyString(data.rollNo, 20)
+        && data.status in ['present', 'absent', 'late', 'excused']
+        && isValidId(data.markedByUid)
+        && isOptionalString(data, 'remarks', 200)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAssignment(data) {
+      return data.keys().hasAll(['title', 'description', 'classId', 'teacherUid', 'teacherName', 'dueDate', 'maxMarks', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'titleBn', 'description', 'courseId', 'classId', 'className', 'teacherUid', 'teacherName', 'dueDate', 'maxMarks', 'createdAt', 'updatedAt'])
+        && isNonEmptyString(data.title, 140)
+        && isOptionalString(data, 'titleBn', 140)
+        && isNonEmptyString(data.description, 1500)
+        && isOptionalString(data, 'courseId', 128)
+        && isValidId(data.classId)
+        && isOptionalString(data, 'className', 80)
+        && isValidId(data.teacherUid)
+        && isNonEmptyString(data.teacherName, 120)
+        && isNonEmptyString(data.dueDate, 40)
+        && data.maxMarks is number && data.maxMarks >= 1 && data.maxMarks <= 1000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSubmission(data) {
+      return data.keys().hasAll(['targetType', 'targetId', 'studentUid', 'studentName', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['targetType', 'targetId', 'targetTitle', 'studentUid', 'studentId', 'studentName', 'content', 'attachmentUrl', 'answers', 'score', 'maxScore', 'feedback', 'status', 'createdAt', 'updatedAt'])
+        && data.targetType in ['assignment', 'exam']
+        && isValidId(data.targetId)
+        && isOptionalString(data, 'targetTitle', 140)
+        && isValidId(data.studentUid)
+        && isOptionalString(data, 'studentId', 128)
+        && isNonEmptyString(data.studentName, 120)
+        && isOptionalString(data, 'content', 4000)
+        && isOptionalString(data, 'attachmentUrl', 500)
+        && (!('answers' in data) || (data.answers is list && data.answers.size() <= 50 && (data.answers.size() == 0 || data.answers[0] is number)))
+        && (!('score' in data) || (data.score is number && data.score >= 0))
+        && (!('maxScore' in data) || (data.maxScore is number && data.maxScore >= 1))
+        && isOptionalString(data, 'feedback', 500)
+        && data.status in ['submitted', 'graded']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLiveClass(data) {
+      return data.keys().hasAll(['title', 'teacherUid', 'teacherName', 'scheduledAt', 'durationMinutes', 'provider', 'meetingUrl', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'titleBn', 'courseTitle', 'classId', 'className', 'teacherUid', 'teacherName', 'scheduledAt', 'durationMinutes', 'provider', 'meetingUrl', 'status', 'createdAt', 'updatedAt'])
+        && isNonEmptyString(data.title, 140)
+        && isOptionalString(data, 'titleBn', 140)
+        && isOptionalString(data, 'courseTitle', 120)
+        && isOptionalString(data, 'classId', 128)
+        && isOptionalString(data, 'className', 80)
+        && isValidId(data.teacherUid)
+        && isNonEmptyString(data.teacherName, 120)
+        && isNonEmptyString(data.scheduledAt, 50)
+        && data.durationMinutes is number && data.durationMinutes >= 5 && data.durationMinutes <= 360
+        && data.provider in ['Zoom', 'Google Meet', 'Jitsi', 'YouTube Live']
+        && isNonEmptyString(data.meetingUrl, 500)
+        && data.status in ['scheduled', 'live', 'completed']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLesson(data) {
+      return data.keys().hasAll(['title', 'category', 'teacherUid', 'teacherName', 'videoUrl', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'titleBn', 'category', 'classId', 'className', 'teacherUid', 'teacherName', 'videoUrl', 'duration', 'description', 'completedByUids', 'createdAt', 'updatedAt'])
+        && isNonEmptyString(data.title, 140)
+        && isOptionalString(data, 'titleBn', 140)
+        && isNonEmptyString(data.category, 80)
+        && isOptionalString(data, 'classId', 128)
+        && isOptionalString(data, 'className', 80)
+        && isValidId(data.teacherUid)
+        && isNonEmptyString(data.teacherName, 120)
+        && isNonEmptyString(data.videoUrl, 500)
+        && isOptionalString(data, 'duration', 30)
+        && isOptionalString(data, 'description', 1000)
+        && (!('completedByUids' in data) || isBoundedStringList(data.completedByUids, 200))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStudyMaterial(data) {
+      return data.keys().hasAll(['title', 'type', 'category', 'resourceUrl', 'downloadAllowed', 'uploadedByUid', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'titleBn', 'type', 'category', 'subjectName', 'classId', 'resourceUrl', 'description', 'downloadAllowed', 'uploadedByUid', 'createdAt', 'updatedAt'])
+        && isNonEmptyString(data.title, 140)
+        && isOptionalString(data, 'titleBn', 140)
+        && data.type in ['pdf', 'notes', 'audio', 'video']
+        && isNonEmptyString(data.category, 80)
+        && isOptionalString(data, 'subjectName', 100)
+        && isOptionalString(data, 'classId', 128)
+        && isNonEmptyString(data.resourceUrl, 500)
+        && isOptionalString(data, 'description', 800)
+        && data.downloadAllowed is bool
+        && isValidId(data.uploadedByUid)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCertificate(data) {
+      return data.keys().hasAll(['verificationNo', 'type', 'studentId', 'studentName', 'title', 'issueDate', 'issuedByUid', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['verificationNo', 'type', 'studentId', 'studentUid', 'parentUserIds', 'studentName', 'fatherName', 'className', 'session', 'title', 'titleBn', 'issueDate', 'issuedByUid', 'assetUrl', 'cloudinaryImageUrl', 'cloudinaryPublicId', 'uploadedAt', 'status', 'createdAt', 'updatedAt'])
+        && isNonEmptyString(data.verificationNo, 40)
+        && data.type in ['course_completion', 'academic', 'achievement']
+        && isValidId(data.studentId)
+        && isOptionalString(data, 'studentUid', 128)
+        && (!('parentUserIds' in data) || isBoundedStringList(data.parentUserIds, 10))
+        && isNonEmptyString(data.studentName, 120)
+        && isOptionalString(data, 'fatherName', 120)
+        && isOptionalString(data, 'className', 80)
+        && isOptionalString(data, 'session', 30)
+        && isNonEmptyString(data.title, 160)
+        && isOptionalString(data, 'titleBn', 160)
+        && isNonEmptyString(data.issueDate, 40)
+        && isValidId(data.issuedByUid)
+        && isOptionalString(data, 'assetUrl', 500)
+        && isOptionalString(data, 'cloudinaryImageUrl', 500)
+        && isOptionalString(data, 'cloudinaryPublicId', 240)
+        && isOptionalString(data, 'uploadedAt', 60)
+        && data.status in ['active', 'revoked']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidNotice(data) {
+      return data.keys().hasAll(['title', 'content', 'priority', 'targetRole', 'published', 'authorUid', 'authorName', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'titleBn', 'content', 'contentBn', 'category', 'priority', 'targetRole', 'published', 'imageUrl', 'cloudinaryImageUrl', 'cloudinaryPublicId', 'uploadedAt', 'authorUid', 'authorName', 'createdAt', 'updatedAt'])
+        && isNonEmptyString(data.title, 160)
+        && isOptionalString(data, 'titleBn', 160)
+        && isNonEmptyString(data.content, 2500)
+        && isOptionalString(data, 'contentBn', 2500)
+        && isOptionalString(data, 'category', 60)
+        && data.priority in ['normal', 'important', 'urgent']
+        && data.targetRole in ['all', 'teacher', 'student', 'parent']
+        && data.published is bool
+        && isOptionalString(data, 'imageUrl', 500)
+        && isOptionalString(data, 'cloudinaryImageUrl', 500)
+        && isOptionalString(data, 'cloudinaryPublicId', 240)
+        && isOptionalString(data, 'uploadedAt', 60)
+        && isValidId(data.authorUid)
+        && isNonEmptyString(data.authorName, 120)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['recipientUid', 'senderUid', 'senderName', 'title', 'message', 'type', 'read', 'createdAt'])
+        && data.keys().hasOnly(['recipientUid', 'senderUid', 'senderName', 'title', 'message', 'type', 'read', 'createdAt'])
+        && isValidId(data.recipientUid)
+        && isValidId(data.senderUid)
+        && isNonEmptyString(data.senderName, 120)
+        && isNonEmptyString(data.title, 140)
+        && isNonEmptyString(data.message, 1000)
+        && data.type in ['announcement', 'message', 'reminder', 'result', 'admission']
+        && data.read is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidFeeRecord(data) {
+      return data.keys().hasAll(['receiptNo', 'studentId', 'studentName', 'category', 'amount', 'paidAmount', 'dueAmount', 'status', 'recordedByUid', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['receiptNo', 'studentId', 'studentUid', 'parentUserIds', 'studentName', 'admissionNo', 'className', 'category', 'amount', 'paidAmount', 'dueAmount', 'status', 'paymentDate', 'remarks', 'recordedByUid', 'createdAt', 'updatedAt'])
+        && isNonEmptyString(data.receiptNo, 40)
+        && isValidId(data.studentId)
+        && isOptionalString(data, 'studentUid', 128)
+        && (!('parentUserIds' in data) || isBoundedStringList(data.parentUserIds, 10))
+        && isNonEmptyString(data.studentName, 120)
+        && isOptionalString(data, 'admissionNo', 40)
+        && isOptionalString(data, 'className', 80)
+        && isNonEmptyString(data.category, 80)
+        && data.amount is number && data.amount >= 0
+        && data.paidAmount is number && data.paidAmount >= 0
+        && data.dueAmount is number && data.dueAmount >= 0
+        && data.status in ['paid', 'partial', 'unpaid']
+        && isOptionalString(data, 'paymentDate', 40)
+        && isOptionalString(data, 'remarks', 300)
+        && isValidId(data.recordedByUid)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSettings(data) {
+      return data.keys().hasAll(['madrasaName', 'establishedYear', 'updatedAt'])
+        && data.keys().hasOnly(['madrasaName', 'madrasaNameBn', 'tagline', 'taglineBn', 'establishedYear', 'motto', 'heroTitle', 'heroTitleBn', 'heroSubtitle', 'heroSubtitleBn', 'welcomeTitle', 'welcomeText', 'welcomeTextBn', 'aboutText', 'aboutTextBn', 'principalName', 'principalNameBn', 'principalTitle', 'principalMessage', 'principalMessageBn', 'principalPhotoUrl', 'principalPhotoPublicId', 'logoUrl', 'logoPublicId', 'heroBannerUrl', 'heroBannerPublicId', 'admissionBannerUrl', 'admissionBannerPublicId', 'certificateSealUrl', 'certificateSealPublicId', 'cloudinaryImageUrl', 'cloudinaryPublicId', 'uploadedAt', 'admissionOpen', 'admissionBannerText', 'admissionBannerTextBn', 'address', 'addressBn', 'phone', 'email', 'socialLinks', 'gradingRules', 'passPercentage', 'superAdminInitialized', 'updatedByUid', 'updatedAt'])
+        && isNonEmptyString(data.madrasaName, 140)
+        && isOptionalString(data, 'madrasaNameBn', 140)
+        && isOptionalString(data, 'tagline', 200)
+        && isOptionalString(data, 'taglineBn', 200)
+        && isNonEmptyString(data.establishedYear, 20)
+        && isOptionalString(data, 'motto', 160)
+        && isOptionalString(data, 'heroTitle', 200)
+        && isOptionalString(data, 'heroTitleBn', 200)
+        && isOptionalString(data, 'heroSubtitle', 400)
+        && isOptionalString(data, 'heroSubtitleBn', 400)
+        && isOptionalString(data, 'welcomeTitle', 200)
+        && isOptionalString(data, 'welcomeText', 1500)
+        && isOptionalString(data, 'welcomeTextBn', 1500)
+        && isOptionalString(data, 'aboutText', 2000)
+        && isOptionalString(data, 'aboutTextBn', 2000)
+        && isOptionalString(data, 'principalName', 120)
+        && isOptionalString(data, 'principalNameBn', 120)
+        && isOptionalString(data, 'principalTitle', 120)
+        && isOptionalString(data, 'principalMessage', 1500)
+        && isOptionalString(data, 'principalMessageBn', 1500)
+        && isOptionalString(data, 'principalPhotoUrl', 500)
+        && isOptionalString(data, 'principalPhotoPublicId', 240)
+        && isOptionalString(data, 'logoUrl', 500)
+        && isOptionalString(data, 'logoPublicId', 240)
+        && isOptionalString(data, 'heroBannerUrl', 500)
+        && isOptionalString(data, 'heroBannerPublicId', 240)
+        && isOptionalString(data, 'admissionBannerUrl', 500)
+        && isOptionalString(data, 'admissionBannerPublicId', 240)
+        && isOptionalString(data, 'certificateSealUrl', 500)
+        && isOptionalString(data, 'certificateSealPublicId', 240)
+        && isOptionalString(data, 'cloudinaryImageUrl', 500)
+        && isOptionalString(data, 'cloudinaryPublicId', 240)
+        && isOptionalString(data, 'uploadedAt', 60)
+        && (!('admissionOpen' in data) || data.admissionOpen is bool)
+        && isOptionalString(data, 'admissionBannerText', 300)
+        && isOptionalString(data, 'admissionBannerTextBn', 300)
+        && isOptionalString(data, 'address', 300)
+        && isOptionalString(data, 'addressBn', 300)
+        && isOptionalString(data, 'phone', 50)
+        && isOptionalString(data, 'email', 140)
+        && (!('socialLinks' in data) || data.socialLinks is map)
+        && (!('gradingRules' in data) || (data.gradingRules is list && data.gradingRules.size() <= 15 && (data.gradingRules.size() == 0 || data.gradingRules[0] is map)))
+        && (!('passPercentage' in data) || (data.passPercentage is number && data.passPercentage >= 0 && data.passPercentage <= 100))
+        && (!('superAdminInitialized' in data) || data.superAdminInitialized is bool)
+        && isOptionalString(data, 'updatedByUid', 128)
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['actorUid', 'action', 'targetCollection', 'summary', 'createdAt'])
+        && data.keys().hasOnly(['actorUid', 'actorEmail', 'actorRole', 'action', 'targetCollection', 'targetId', 'summary', 'createdAt'])
+        && isValidId(data.actorUid)
+        && isOptionalString(data, 'actorEmail', 160)
+        && isOptionalString(data, 'actorRole', 40)
+        && isNonEmptyString(data.action, 80)
+        && isNonEmptyString(data.targetCollection, 60)
+        && isOptionalString(data, 'targetId', 128)
+        && isNonEmptyString(data.summary, 400)
+        && data.createdAt is timestamp;
+    }
+
+    // ------------------------------------------------------------------
+    // Collection Match Rules
+    // ------------------------------------------------------------------
+
+    // Connection check doc
+    match /test/connection {
+      allow get: if true;
+    }
+
+    // Users (PII & RBAC isolated)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isBootstrappedSuperAdmin() || (isVerified() && resource.data.uid == request.auth.uid) || isAdmin();
+      allow create: if isValidId(userId) && isVerified() && isValidUser(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isSuperAdmin()
+          || (
+            incoming().uid == request.auth.uid
+            && (
+              (incoming().role in ['student', 'parent'] && incoming().status == 'active')
+              || (incoming().role == 'teacher' && incoming().status == 'pending')
+            )
+          )
+        );
+      allow update: if isValidId(userId) && isVerified() && isValidUser(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isSuperAdmin()
+          || (
+            isOwner(userId)
+            && incoming().role == existing().role
+            && incoming().status == existing().status
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'displayNameBn', 'phone', 'photoUrl', 'cloudinaryImageUrl', 'cloudinaryPublicId', 'uploadedAt', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(userId) && isSuperAdmin();
+    }
+
+    // Public Teachers Gallery (no PII)
+    match /publicTeachers/{teacherId} {
+      allow get: if isValidId(teacherId);
+      allow list: if resource.data.order >= 0;
+      allow create: if isValidId(teacherId) && isAdmin() && isValidPublicTeacher(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(teacherId) && isAdmin() && isValidPublicTeacher(incoming())
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isValidId(teacherId) && isAdmin();
+    }
+
+    // Protected Teacher Records
+    match /teachers/{teacherId} {
+      allow get: if isValidId(teacherId) && (isAdmin() || (isVerified() && existing().userId == request.auth.uid));
+      allow list: if isBootstrappedSuperAdmin() || isAdmin() || (isVerified() && resource.data.userId == request.auth.uid);
+      allow create: if isValidId(teacherId) && isVerified() && isValidTeacherRecord(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time
+        && (isAdmin() || (incoming().userId == request.auth.uid && incoming().status == 'pending' && incoming().canPublishResults == false));
+      allow update: if isValidId(teacherId) && isVerified() && isValidTeacherRecord(incoming())
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            existing().userId == request.auth.uid
+            && incoming().status == existing().status
+            && incoming().canPublishResults == existing().canPublishResults
+            && incoming().diff(existing()).affectedKeys().hasOnly(['fullName', 'fullNameBn', 'qualification', 'bio', 'experience', 'phone', 'photoUrl', 'cloudinaryImageUrl', 'cloudinaryPublicId', 'uploadedAt', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(teacherId) && isSuperAdmin();
+    }
+
+    // Protected Student Records
+    match /students/{studentId} {
+      allow get: if isValidId(studentId) && isVerified() && (
+        isTeacher()
+        || existing().userId == request.auth.uid
+        || (('parentUserIds' in existing()) && request.auth.uid in existing().parentUserIds)
+      );
+      allow list: if isBootstrappedSuperAdmin() || isTeacher() || (
+        isVerified() && (
+          resource.data.userId == request.auth.uid
+          || (('parentUserIds' in resource.data) && request.auth.uid in resource.data.parentUserIds)
+        )
+      );
+      allow create: if isValidId(studentId) && isAdmin() && isValidStudentRecord(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(studentId) && isVerified() && isValidStudentRecord(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            existing().userId == request.auth.uid
+            && incoming().admissionNo == existing().admissionNo
+            && incoming().rollNo == existing().rollNo
+            && incoming().status == existing().status
+            && incoming().diff(existing()).affectedKeys().hasOnly(['address', 'guardianPhone', 'photoUrl', 'cloudinaryImageUrl', 'cloudinaryPublicId', 'uploadedAt', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(studentId) && isSuperAdmin();
+    }
+
+    // Courses (Public catalog)
+    match /courses/{courseId} {
+      allow get: if isValidId(courseId) && (existing().status == 'active' || isTeacher());
+      allow list: if resource.data.status == 'active' || isTeacher();
+      allow create: if isValidId(courseId) && isAdmin() && isValidCourse(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(courseId) && isAdmin() && isValidCourse(incoming())
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isValidId(courseId) && isAdmin();
+    }
+
+    // Classes & Batches (Public structure)
+    match /classes/{classId} {
+      allow get: if isValidId(classId);
+      allow list: if isTeacher() || resource.data.name != '';
+      allow create: if isValidId(classId) && isAdmin() && isValidClassBatch(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(classId) && isAdmin() && isValidClassBatch(incoming())
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isValidId(classId) && isAdmin();
+    }
+
+    // Subjects
+    match /subjects/{subjectId} {
+      allow get: if isValidId(subjectId);
+      allow list: if isTeacher() || resource.data.name != '';
+      allow create: if isValidId(subjectId) && isAdmin() && isValidSubject(incoming())
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(subjectId) && isAdmin() && isValidSubject(incoming())
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isValidId(subjectId) && isAdmin();
+    }
+
+    // Online Admissions
+    match /admissions/{admissionId} {
+      allow get: if isValidId(admissionId) && isVerified() && (isAdmin() || existing().submittedByUid == request.auth.uid);
+      allow list: if isBootstrappedSuperAdmin() || isAdmin() || (isVerified() && resource.data.submittedByUid == request.auth.uid);
+      allow create: if isValidId(admissionId) && isVerified() && isValidAdmission(incoming())
+        && incoming().submittedByUid == request.auth.uid
+        && incoming().status == 'pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(admissionId) && isAdmin() && isValidAdmission(incoming())
+        && incoming().submittedByUid == existing().submittedByUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isValidId(admissionId) && isSuperAdmin();
+    }
+
+    // Examinations
+    match /examinations/{examId} {
+      allow get: if isValidId(examId) && isVerified();
+      allow list: if isVerified() && (isTeacher() || resource.data.status in ['active', 'completed', 'published']);
+      allow create: if isValidId(examId) && isTeacher() && isValidExamination(incoming())
+        && incoming().createdByUid == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(examId) && isTeacher() && isValidExamination(incoming())
+        && incoming().createdByUid == existing().createdByUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (isAdmin() || existing().createdByUid == request.auth.uid);
+      allow delete: if isValidId(examId) && isAdmin();
+    }
+
+    // Official Results / Marksheets
+    match /results/{resultId} {
+      allow get: if isValidId(resultId) && (
+        existing().approvalStatus == 'published'
+        || isTeacher()
+        || (isVerified() && ('studentUid' in existing()) && existing().studentUid == request.auth.uid)
+        || (isVerified() && ('parentUserIds' in existing()) && request.auth.uid in existing().parentUserIds)
+      );
+      allow list: if resource.data.approvalStatus == 'published'
+        || isTeacher()
+        || (isVerified() && ('studentUid' in resource.data) && resource.data.studentUid == request.auth.uid)
+        || (isVerified() && ('parentUserIds' in resource.data) && request.auth.uid in resource.data.parentUserIds);
+      allow create: if isValidId(resultId) && isTeacher() && isValidResult(incoming())
+        && incoming().submittedByUid == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time
+        && (canPublishResults() || incoming().approvalStatus in ['draft', 'submitted']);
+      allow update: if isValidId(resultId) && isTeacher() && isValidResult(incoming())
+        && incoming().submittedByUid == existing().submittedByUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          canPublishResults()
+          || (
+            existing().approvalStatus in ['draft', 'submitted']
+            && incoming().approvalStatus in ['draft', 'submitted']
+          )
+        );
+      allow delete: if isValidId(resultId) && isAdmin();
+    }
+
+    // Attendance
+    match /attendance/{attendanceId} {
+      allow get: if isValidId(attendanceId) && isVerified() && (
+        isTeacher()
+        || (('studentUid' in existing()) && existing().studentUid == request.auth.uid)
+        || (('parentUserIds' in existing()) && request.auth.uid in existing().parentUserIds)
+      );
+      allow list: if isTeacher()
+        || (isVerified() && ('studentUid' in resource.data) && resource.data.studentUid == request.auth.uid)
+        || (isVerified() && ('parentUserIds' in resource.data) && request.auth.uid in resource.data.parentUserIds);
+      allow create: if isValidId(attendanceId) && isTeacher() && isValidAttendance(incoming())
+        && incoming().markedByUid == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(attendanceId) && isTeacher() && isValidAttendance(incoming())
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isValidId(attendanceId) && isAdmin();
+    }
+
+    // Assignments
+    match /assignments/{assignmentId} {
+      allow get: if isValidId(assignmentId) && isVerified();
+      allow list: if isVerified() && resource.data.title != '';
+      allow create: if isValidId(assignmentId) && isTeacher() && isValidAssignment(incoming())
+        && incoming().teacherUid == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(assignmentId) && isTeacher() && isValidAssignment(incoming())
+        && incoming().teacherUid == existing().teacherUid
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isValidId(assignmentId) && isTeacher();
+    }
+
+    // Submissions
+    match /submissions/{submissionId} {
+      allow get: if isValidId(submissionId) && isVerified() && (isTeacher() || existing().studentUid == request.auth.uid);
+      allow list: if isTeacher() || (isVerified() && resource.data.studentUid == request.auth.uid);
+      allow create: if isValidId(submissionId) && isVerified() && isValidSubmission(incoming())
+        && incoming().studentUid == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time
+        && incoming().status == 'submitted'
+        && !('score' in incoming());
+      allow update: if isValidId(submissionId) && isTeacher() && isValidSubmission(incoming())
+        && incoming().studentUid == existing().studentUid
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isValidId(submissionId) && isAdmin();
+    }
+
+    // Live Classes
+    match /liveClasses/{liveClassId} {
+      allow get: if isValidId(liveClassId);
+      allow list: if resource.data.status in ['scheduled', 'live', 'completed'];
+      allow create: if isValidId(liveClassId) && isTeacher() && isValidLiveClass(incoming())
+        && incoming().teacherUid == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(liveClassId) && isTeacher() && isValidLiveClass(incoming())
+        && incoming().teacherUid == existing().teacherUid
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isValidId(liveClassId) && isTeacher();
+    }
+
+    // Recorded Video Lessons
+    match /lessons/{lessonId} {
+      allow get: if isValidId(lessonId) && isVerified();
+      allow list: if isVerified() && resource.data.title != '';
+      allow create: if isValidId(lessonId) && isTeacher() && isValidLesson(incoming())
+        && incoming().teacherUid == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(lessonId) && isVerified() && isValidLesson(incoming())
+        && incoming().teacherUid == existing().teacherUid
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time
+        && (
+          isTeacher()
+          || incoming().diff(existing()).affectedKeys().hasOnly(['completedByUids', 'updatedAt'])
+        );
+      allow delete: if isValidId(lessonId) && isTeacher();
+    }
+
+    // Study Materials (Digital Library)
+    match /studyMaterials/{materialId} {
+      allow get: if isValidId(materialId) && isVerified();
+      allow list: if isVerified() && resource.data.title != '';
+      allow create: if isValidId(materialId) && isTeacher() && isValidStudyMaterial(incoming())
+        && incoming().uploadedByUid == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(materialId) && isTeacher() && isValidStudyMaterial(incoming())
+        && incoming().uploadedByUid == existing().uploadedByUid
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isValidId(materialId) && isTeacher();
+    }
+
+    // Certificates (Publicly verifiable by verificationNo when active)
+    match /certificates/{certificateId} {
+      allow get: if isValidId(certificateId) && (
+        existing().status == 'active'
+        || isAdmin()
+        || (isVerified() && ('studentUid' in existing()) && existing().studentUid == request.auth.uid)
+        || (isVerified() && ('parentUserIds' in existing()) && request.auth.uid in existing().parentUserIds)
+      );
+      allow list: if resource.data.status == 'active'
+        || isAdmin()
+        || (isVerified() && ('studentUid' in resource.data) && resource.data.studentUid == request.auth.uid)
+        || (isVerified() && ('parentUserIds' in resource.data) && request.auth.uid in resource.data.parentUserIds);
+      allow create: if isValidId(certificateId) && isAdmin() && isValidCertificate(incoming())
+        && incoming().issuedByUid == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(certificateId) && isAdmin() && isValidCertificate(incoming())
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isValidId(certificateId) && isSuperAdmin();
+    }
+
+    // Notices
+    match /notices/{noticeId} {
+      allow get: if isValidId(noticeId) && ((existing().published == true && existing().targetRole == 'all') || isVerified());
+      allow list: if (resource.data.published == true && resource.data.targetRole == 'all') || isVerified();
+      allow create: if isValidId(noticeId) && isAdmin() && isValidNotice(incoming())
+        && incoming().authorUid == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(noticeId) && isAdmin() && isValidNotice(incoming())
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isValidId(noticeId) && isAdmin();
+    }
+
+    // Notifications & Direct Messages
+    match /notifications/{notificationId} {
+      allow get: if isValidId(notificationId) && isVerified() && (existing().recipientUid == request.auth.uid || existing().senderUid == request.auth.uid || isAdmin());
+      allow list: if isVerified() && (resource.data.recipientUid == request.auth.uid || resource.data.senderUid == request.auth.uid || isAdmin());
+      allow create: if isValidId(notificationId) && isVerified() && isValidNotification(incoming())
+        && incoming().senderUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update: if isValidId(notificationId) && isVerified() && isValidNotification(incoming())
+        && existing().recipientUid == request.auth.uid
+        && incoming().recipientUid == existing().recipientUid
+        && incoming().senderUid == existing().senderUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
+      allow delete: if isValidId(notificationId) && isAdmin();
+    }
+
+    // Fee Records
+    match /feeRecords/{feeId} {
+      allow get: if isValidId(feeId) && isVerified() && (
+        isAdmin()
+        || (('studentUid' in existing()) && existing().studentUid == request.auth.uid)
+        || (('parentUserIds' in existing()) && request.auth.uid in existing().parentUserIds)
+      );
+      allow list: if isAdmin()
+        || (isVerified() && ('studentUid' in resource.data) && resource.data.studentUid == request.auth.uid)
+        || (isVerified() && ('parentUserIds' in resource.data) && request.auth.uid in resource.data.parentUserIds);
+      allow create: if isValidId(feeId) && isAdmin() && isValidFeeRecord(incoming())
+        && incoming().recordedByUid == request.auth.uid
+        && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isValidId(feeId) && isAdmin() && isValidFeeRecord(incoming())
+        && incoming().createdAt == existing().createdAt && incoming().updatedAt == request.time;
+      allow delete: if isValidId(feeId) && isSuperAdmin();
+    }
+
+    // Website Settings & Grading Policy
+    match /settings/{settingId} {
+      allow get: if isValidId(settingId);
+      allow list: if resource.data.madrasaName is string;
+      allow create: if isValidId(settingId) && isSuperAdmin() && isValidSettings(incoming())
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(settingId) && isAdmin() && isValidSettings(incoming())
+        && incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    // Immutable Audit Logs
+    match /auditLogs/{logId} {
+      allow get: if isValidId(logId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(logId) && isVerified() && isValidAuditLog(incoming())
+        && incoming().actorUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+  }
+}
